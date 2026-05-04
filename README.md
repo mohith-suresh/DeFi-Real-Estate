@@ -71,6 +71,8 @@ We look forward to reviewing your submission.
 
 ## Submission notes
 
+> **Looking for the ~40-minute scope-faithful version?** See the [`minimal-fixes`](https://github.com/mohith-suresh/DeFi-Real-Estate/tree/minimal-fixes) branch — only the five high-impact fixes below plus 9 tests (4 Jest backend + 5 Hardhat). `main` is the deeper iterative work.
+
 ### High-impact bugs
 
 1. `server/app.js` — `body-parser` required but never mounted; `mongoose.connect()` never called. Server couldn't serve a request.
