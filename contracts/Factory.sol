@@ -1,9 +1,10 @@
-pragma solidity >=0.4.25 <0.6.0;
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
 import "./HomeTransaction.sol";
 
 contract Factory {
-  HomeTransaction[] contracts;
+  HomeTransaction[] private contracts;
 
   function create(
         string memory _address,
@@ -19,7 +20,7 @@ contract Factory {
       _city,
       _realtorFee,
       _price,
-      msg.sender,
+      payable(msg.sender),
       _seller,
       _buyer);
     contracts.push(homeTransaction);
