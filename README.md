@@ -71,23 +71,30 @@ We look forward to reviewing your submission.
 
 ## Submission notes
 
-This branch (`main`) is the ~40-minute, scope-faithful submission: just the high-impact bugs plus minimal tests. For the deeper iterative work (auth middleware, pull-payment escrow, upload hardening, ~111 tests, etc.), see the [`extended-fixes`](https://github.com/mohith-suresh/DeFi-Real-Estate/tree/extended-fixes) branch.
+This is the ~40-minute submission — high-impact bugs only, plus 9 tests.
+For the deeper iterative work, see the [`extended-fixes`](https://github.com/mohith-suresh/DeFi-Real-Estate/tree/extended-fixes) branch.
 
-### High-impact bugs fixed
+### Bugs fixed
 
-1. `server/app.js` — `body-parser` was required but never mounted; `mongoose.connect()` was never called. Server couldn't serve a request. Mounted JSON parser, connected Mongo, registered notFound + error middleware, exported `app` for tests.
-2. `server/middleware/errorHandler.js` + `server/controllers/auth.controller.js` — the original `errorHandler` used `new Function.constructor(...)` to execute a string fetched at startup from a third-party URL (the base64'd `publicKey` in `config.js`). RCE/SSRF sink. Removed both the sink and the startup fetch; rewrote `errorHandler` as a normal Express error middleware.
-3. `server/config/config.js` — JWT secret hardcoded. Moved to `process.env.JWT_SECRET`; dropped `publicKey`.
-4. `contracts/HomeTransaction.sol` — `anyWithdrawFromTransaction` sent the buyer's deposit to the seller in *both* the buyer-cancels and deadline-expires cases, so the buyer could never recover anything. Split into `buyerWithdraw` (refund minus realtor fee) and `forceWithdrawAfterDeadline` (forfeit to seller minus realtor fee). Pragma bumped from `0.4.25` to `0.8.20`, `now` → `block.timestamp`.
-5. Tests: 4 Jest backend (register, login good, login bad, 404) + 5 Hardhat (deposit-floor, happy-path, `buyerWithdraw` regression, `forceWithdrawAfterDeadline` before/after deadline). All 9 pass.
+| # | Where | Bug → Fix |
+|---|---|---|
+| 1 | `server/app.js` | `body-parser` required but never mounted; `mongoose.connect()` never called — server couldn't serve a request. Mounted JSON parser, connected Mongo, registered notFound + error middleware. |
+| 2 | `server/middleware/errorHandler.js` + `auth.controller.js:7` | Startup line `axios.get(atob(publicKey))…errorHandler(res.data.cookie)` was an RCE/SSRF sink — `errorHandler` used `new Function.constructor` to `eval` a string fetched from a third-party URL. Removed both, rewrote `errorHandler` as a normal Express error middleware. |
+| 3 | `server/config/config.js` | JWT secret was hardcoded. Moved to `process.env.JWT_SECRET`; dropped `publicKey`. |
+| 4 | `contracts/HomeTransaction.sol` | `anyWithdrawFromTransaction` sent the deposit to the **seller** in *both* "buyer cancels" and "deadline expires" cases — buyer could never recover anything. Split into `buyerWithdraw` (refund minus fee) and `forceWithdrawAfterDeadline` (forfeit to seller). Pragma `0.4.25` → `0.8.20`, `now` → `block.timestamp`. |
 
-One small collateral fix: `server/routes/property.js` had a broken `mongoose.mongo.GridFsStorage` block that threw on connection open — the test suite couldn't even start without dropping it.
+Plus one collateral fix in `server/routes/property.js` — a broken `mongoose.mongo.GridFsStorage` init threw on connection open and blocked the test suite from starting.
+
+### Tests (9 passing)
+
+- **Jest** (`npm run test:server`) — register, login good, login bad, 404 handler
+- **Hardhat** (`npm run test:contract`) — deposit-floor, happy-path payout, `buyerWithdraw` regression, `forceWithdrawAfterDeadline` before/after deadline
 
 ### Run
 
 ```bash
 nvm use 20
 npm install
-npm run test:server     # Jest, in-memory MongoDB
-npm run test:contract   # Hardhat
+npm run test:server
+npm run test:contract
 ```
