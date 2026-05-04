@@ -1,22 +1,24 @@
 const express = require('express');
-var app = express();
 
-var commonController = require('../controllers/common.controller');
+const commonController = require('../controllers/common.controller');
+const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
 
-var router = express.Router();
+const router = express.Router();
 
-router.route('/state')
+const adminOnly = [requireAuth, requireAdmin];
+
+router
+  .route('/state')
   .get(commonController.getStateList)
-  .post(commonController.addState)
+  .post(adminOnly, commonController.addState);
 
-router.route('/cities')
+router
+  .route('/cities')
   .get(commonController.getAllCities)
-  .post(commonController.addCity)
+  .post(adminOnly, commonController.addCity);
 
-router.get('/cities/:state_id', commonController.getCityList)
-
-router.delete('/city/:cityId', commonController.removeCity)
-
-router.get('/checkemail-availability/email/:email', commonController.checkemailAvailability)
+router.get('/cities/:state_id', commonController.getCityList);
+router.delete('/city/:cityId', adminOnly, commonController.removeCity);
+router.get('/checkemail-availability/email/:email', commonController.checkemailAvailability);
 
 module.exports = router;

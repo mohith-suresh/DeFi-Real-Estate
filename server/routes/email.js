@@ -1,52 +1,44 @@
 const express = require('express');
-const router = express.Router();
-const helpers = require('../providers/helper');
-
 const sgMail = require('@sendgrid/mail');
 
-const sendEmail = (data) => {
-  return sgMail.send(data)
-}
+const helpers = require('../providers/helper');
+const { requireAuth } = require('../middleware/requireAuth');
 
-router.post('/github-pages', (req, res) => {
-  let errorMessage = ''
-  const checkMissingKey = helpers.isKeyMissing(req.body, ['toEmail', 'fromEmail', 'name', 'email', 'message']);
+const router = express.Router();
 
-  if (checkMissingKey) {
-    errorMessage = `${checkMissingKey} is missing`;
-  }
-  else if (!process.env.SENDGRID_API_KEY) {
-    errorMessage = 'Sendgrid API key not found'
-  }
-  else if (!process.env.SENDGRID_TEMPLATE_ID) {
-    errorMessage = 'Sendgrid template not found'
-  }
+// Contact-form relay. The client supplies the message body only — the
+// recipient and the sender are server-controlled to prevent the route
+// from being abused as an open mail relay or sender-spoofer. Only
+// authenticated users can hit it.
+router.post('/github-pages', requireAuth, async (req, res, next) => {
+  const missing = helpers.isKeyMissing(req.body || {}, ['name', 'email', 'message']);
+  if (missing) return res.status(400).json({ message: `${missing} is missing` });
 
-  if (errorMessage) {
-    res.status(400).json({ message: errorMessage })
-    return false
+  const apiKey = process.env.SENDGRID_API_KEY;
+  const templateId = process.env.SENDGRID_TEMPLATE_ID;
+  const fromAddress = process.env.SENDGRID_FROM;
+  const toAddress = process.env.CONTACT_TO;
+  if (!apiKey || !templateId || !fromAddress || !toAddress) {
+    return res.status(503).json({ message: 'Email service is not configured' });
   }
 
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  sgMail.setApiKey(apiKey);
 
-  const msg = {
-    to: req.body.toEmail,
-    from: req.body.fromEmail,
-    template_id: process.env.SENDGRID_TEMPLATE_ID,
-    dynamic_template_data: {
-      name: req.body.name,
-      email: req.body.email,
-      message: req.body.message
-    }
-  };
-
-  sendEmail(msg)
-    .then(() => {
-      res.status(200).json({ message: 'Email sent successfully' })
-    })
-    .catch((err) => {
-      res.status(400).send(err)
-    })
-})
+  try {
+    await sgMail.send({
+      to: toAddress,
+      from: fromAddress,
+      template_id: templateId,
+      dynamic_template_data: {
+        name: req.body.name,
+        email: req.body.email,
+        message: req.body.message,
+      },
+    });
+    return res.status(200).json({ message: 'Email sent successfully' });
+  } catch (err) {
+    return next(err);
+  }
+});
 
 module.exports = router;

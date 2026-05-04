@@ -3,7 +3,9 @@ var Schema = mongoose.Schema;
 
 propertyTypesSchema = new Schema({
   title: {
-    type: String
+    type: String,
+    required: true,
+    trim: true
   },
   type: {
     type: String,

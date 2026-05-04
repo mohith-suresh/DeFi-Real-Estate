@@ -5,11 +5,13 @@ var Schema = mongoose.Schema;
 var citySchema = new Schema({
   name: {
     type: String,
-    unique: true
+    required: true,
+    trim: true
   },
   state_id: {
     type: Schema.Types.ObjectId,
-    ref: 'States'
+    ref: 'States',
+    required: true
   },
   is_active: {
     type: Boolean,
@@ -20,5 +22,9 @@ var citySchema = new Schema({
     default: Date.now
   }
 });
+
+// Cities are unique within a state, not globally — so two states can each
+// have a city named "Springfield".
+citySchema.index({ name: 1, state_id: 1 }, { unique: true });
 
 module.exports = mongoose.model('City', citySchema);

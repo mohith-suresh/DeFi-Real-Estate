@@ -1,37 +1,49 @@
 const express = require('express');
 const multer = require('multer');
-const crypto = require('crypto');
 const path = require('path');
-const mongoose = require('mongoose');
-const config = require('../config/config');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const propertyController = require('../controllers/property.controller');
+const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
+const { MIME_TO_EXT } = require('../providers/imageTypes');
 
 const router = express.Router();
-const propertyController = require('../controllers/property.controller');
 
-const upload = multer({ storage: multer.memoryStorage() });
+const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'properties');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-let gfs;
-
-mongoose.connection.once('open', () => {
-  gfs = new mongoose.mongo.GridFsStorage(mongoose.connection.db, {
-    bucketName: 'imageMeta'
-  });
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
+  filename: (req, file, cb) => {
+    const ext = MIME_TO_EXT[file.mimetype];
+    if (!ext) return cb(new Error('Unsupported file type'));
+    cb(null, `${crypto.randomBytes(16).toString('hex')}${ext}`);
+  },
 });
 
-router.use((req, res, next) => {
-  req.gfs = gfs;
-  next();
-})
+const fileFilter = (req, file, cb) => {
+  if (MIME_TO_EXT[file.mimetype]) return cb(null, true);
+  const err = new Error('Only JPG/PNG/WEBP/GIF images are allowed');
+  err.status = 415;
+  cb(err);
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024, files: 10 },
+});
 
 router.get('/type', propertyController.propertyTypeList);
-router.post('/type', propertyController.addPropertyType);
+router.post('/type', requireAuth, requireAdmin, propertyController.addPropertyType);
 
-router.post('/new', upload.array("propImages"), propertyController.addNewProperty);
+router.post('/new', requireAuth, upload.array('propImages'), propertyController.addNewProperty);
 router.get('/list/:userId', propertyController.getUserList);
 router.get('/list/', propertyController.getFullList);
 router.get('/single/:propertySlug', propertyController.getSingleProperty);
 router.get('/showGFSImage/:filename', propertyController.showGFSImage);
-router.post('/markAsSold/:propertySlug', propertyController.markAsSold);
+router.post('/markAsSold/:propertySlug', requireAuth, propertyController.markAsSold);
 
 router.get('/filter', propertyController.filterProperties);
 

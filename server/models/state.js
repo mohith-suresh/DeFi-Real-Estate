@@ -5,6 +5,8 @@ var Schema = mongoose.Schema;
 var stateSchema = new Schema({
   name: {
     type: String,
+    required: true,
+    trim: true,
     unique: true
   },
   is_active: {

@@ -1,14 +1,13 @@
 const express = require('express');
 
-var app = express();
+const authC = require('../controllers/auth.controller');
+const { requireAuth, requireAdmin } = require('../middleware/requireAuth');
 
-var authC = require('../controllers/auth.controller');
-
-var router = express.Router();
+const router = express.Router();
 
 router.post('/user/login', authC.userLogin);
 router.post('/user/register', authC.userRegistration);
-router.get('/admin/userList', authC.userList)
-router.put('/admin/changePass', authC.changePass)
+router.get('/admin/userList', requireAuth, requireAdmin, authC.userList);
+router.put('/admin/changePass', requireAuth, authC.changePass);
 
 module.exports = router;

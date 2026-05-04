@@ -21,7 +21,6 @@
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "ethers": "^5.6.9",
     "express": "^4.19.2",
     "express-fileupload": "^1.5.0",
     "framer-motion": "^12.9.4",
@@ -57,6 +56,8 @@
     "client": "react-app-rewired start",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
+    "test:server": "jest --runInBand",
+    "test:contract": "hardhat test",
     "eject": "echo \"Not Support eject\""
   },
   "eslintConfig": {
@@ -64,6 +65,14 @@
       "react-app",
       "react-app/jest"
     ]
+  },
+  "overrides": {
+    "react-scripts": {
+      "typescript": "$typescript"
+    },
+    "fork-ts-checker-webpack-plugin": {
+      "typescript": "$typescript"
+    }
   },
   "browserslist": {
     "production": [
@@ -78,14 +87,22 @@
     ]
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "assert": "^2.0.0",
     "buffer": "^6.0.3",
+    "chai": "^4.5.0",
     "crypto-browserify": "^3.12.0",
+    "ethers": "^6.16.0",
+    "hardhat": "^2.28.6",
     "https-browserify": "^1.0.0",
+    "jest": "^27.5.1",
+    "mongodb-memory-server": "^11.1.0",
     "os-browserify": "^0.3.0",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
+    "supertest": "^7.2.2",
+    "typescript": "^5.9.3",
     "url": "^0.11.0"
   }
 }

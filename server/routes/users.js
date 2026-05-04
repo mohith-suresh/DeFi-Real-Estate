@@ -1,10 +1,10 @@
 const express = require('express');
 
-var app = express();
-var userController = require('../controllers/users.controller');
+const userController = require('../controllers/users.controller');
+const { requireAuth } = require('../middleware/requireAuth');
 
-var router = express.Router();
+const router = express.Router();
 
-router.get('/:userId', userController.getUserDetails);
+router.get('/:userId', requireAuth, userController.getUserDetails);
 
 module.exports = router;

